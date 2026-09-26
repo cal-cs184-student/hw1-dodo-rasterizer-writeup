@@ -30,16 +30,15 @@
 <body>
 	<div class="container">
 		<h1>CS184/284A Fall 2026 Homework 1 Write-Up</h1>
-		<div style="text-align: center;">Names: Ken Zheng</div>
+		<div style="text-align: center;">Name: Ken Zheng</div>
 
 		<br>
 
-		Link to webpage: (TODO) <a href="https://cs184.eecs.berkeley.edu/fa26">cs184.eecs.berkeley.edu/fa26</a>
+		<a href="https://cal-cs184-student.github.io/hw1-dodo-rasterizer-writeup/">Link to webpage</a>
 
 		<br>
 
-		Link to GitHub repository: (TODO) <a
-			href="https://cs184.eecs.berkeley.edu/fa26">cs184.eecs.berkeley.edu/fa26</a>
+		<a href="https://github.com/cal-cs184-student/hw1-dodo-rasterizer">Link to GitHub repository</a>
 
 		<!-- <figure>
 			<img src="assets/lion.jpg" alt="Lion" style="width:50%" />
@@ -51,8 +50,11 @@
 		-->
 
 		<h2>Overview</h2>
-		Give a high-level overview of what you implemented in this homework. Think about what you've built as a whole.
-		Share your thoughts on what interesting things you've learned from completing the homework.
+		In this homework, I built a rasterizer that supports triangle rasterization, supersampling and antialiasing,
+		geometric transformations, barycentric color interpolation, texture sampling, and mipmap-based level sampling.
+		Through these tasks, I learned how the different stages of a rendering pipeline work together and how techniques
+		like supersampling, bilinear filtering, and mipmaps reduce different kinds of aliasing. Crucial techniques to make for 
+		good-looking renders!
 
 		<h2>Task 1: Drawing Single-Color Triangles</h2>
 
@@ -133,7 +135,8 @@
 		</table>
 		<p>Incremental evaluation alone changed timings by less than 10% in either direction. An optimized build
 			does these few multiplies quickly. It seems early row exit gave a lot of gain: about 1.25-1.5x,
-			likley because a triangle covers at most half of its bounding box, and the samples to the right of each row's span
+			likley because a triangle covers at most half of its bounding box, and the samples to the right of each
+			row's span
 			are no longer tested.</p>
 
 
@@ -292,7 +295,8 @@
 			a second <code>rotate</code> at the elbow and knee. On top of the pose I gave each body part its own color
 			, enlarged and tilted the head slightly, and added three small
 			rotated squares as sparkles above the waving hand!</p>
-		<figure>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;"></table>
 				<tr>
 					<td style="text-align: center;">
 						<img src="assets/task3_robot.png" width="400px" />
@@ -300,19 +304,20 @@
 						</figcaption>
 					</td>
 					<td style="text-align: center;">
-						<img src="assets/my_robot_screenshot.png" alt="my_robot.svg rendered" width="400px" />
+						<img src="assets/my_robot_screenshot.png" width="400px" />
 						<figcaption>Cubeman 2.0: dancing & waving, built from translated,
-								scaled, and rotated squares!</figcaption>
+							scaled, and rotated squares!</figcaption>
 					</td>
 				</tr>
-		</figure>
+			</table>
+		</div>
 
 
 
 		<h2>Task 4: Barycentric coordinates</h2>
 
 		<h3>Barycentric coordinates</h3>
-		<p>Any point P  inside a triangle can be written as a weighted average of its three vertices: \( P =
+		<p>Any point P inside a triangle can be written as a weighted average of its three vertices: \( P =
 			\lambda_0 v_0 + \lambda_1 v_1 + \lambda_2 v_2 \) where the weights satisfy \( \lambda_0 + \lambda_1 +
 			\lambda_2 = 1 \). These weights are the barycentric coordinates of \( P \). Each one measures how
 			strongly the triangle "belongs" to its vertex: \( \lambda_i \) is exactly 1 at vertex \( v_i \), exactly 0
@@ -327,7 +332,8 @@
 			color, and every interior point is the blend its position dictates!</p>
 		<figure>
 			<img src="assets/task4_rgb_triangle.png" alt="RGB interpolated triangle" style="width:50%" />
-			<figcaption>A single triangle with a red, a green, and a blue vertex. Color at any point is the barycentric blend of the three
+			<figcaption>A single triangle with a red, a green, and a blue vertex. Color at any point is the barycentric
+				blend of the three
 				vertex colors.</figcaption>
 		</figure>
 
@@ -340,202 +346,247 @@
 
 
 		<h2>Task 5: "Pixel sampling" for texture mapping</h2>
-			<h3>Pixel sampling</h3>
-			<p>Each vertex of a textured triangle carries a texture coordinate \( (u, v) \in [0, 1]^2 \). For every screen
-				sample, I interpolate these coordinates to find where the sample lands on the texture, then look up color there. The texture is a grid of discrete texels, but the interpolated \( (u, v) \) is continuous
-				and almost never falls exactly on a texel center. Pixel sampling is the rule that turns this
-				continuous texture position into color from the nearby texels.</p>
+		<h3>Pixel sampling</h3>
+		<p>Each vertex of a textured triangle carries a texture coordinate \( (u, v) \in [0, 1]^2 \). For every screen
+			sample, I interpolate these coordinates to find where the sample lands on the texture, then look up color
+			there. The texture is a grid of discrete texels, but the interpolated \( (u, v) \) is continuous
+			and almost never falls exactly on a texel center. Pixel sampling is the rule that turns this
+			continuous texture position into color from the nearby texels.</p>
 
-			<h3>Implementation</h3>
-			<p><code>rasterize_textured_triangle</code> follows the same structure as my Task 4 function. It scales the
-				vertices into the supersample grid, fixes the winding order,
-				and walks the bounding box with edge functions. For each covered sample, the edge functions divided by the
-				triangle's area gives the barycentric coordinates \( \lambda_0, \lambda_1, \lambda_2 \). The sample's
-				texture coordinate is then \( \lambda_0 (u_0, v_0) + \lambda_1 (u_1, v_1) + \lambda_2 (u_2, v_2) \). I
-				store it in a <code>SampleParams</code> struct together with the current sampling methods, and pass that to
-				<code>Texture::sample</code>. 
-			<ul>
-				<li><b>Nearest:</b> return the single texel that contains \( (x, y) \), i.e. texel \( (\lfloor x \rfloor,
-					\lfloor y \rfloor) \), which is the texel whose center is closest. The result is clamped to the texture
-					so that \( u = 1 \) or \( v = 1 \) stays in range.</li>
-				<li><b>Bilinear:</b> find the four texel centers surrounding \( (x, y) \). After shifting by half a texel,
-					they are at columns \( \lfloor x - 0.5 \rfloor \) and \( \lfloor x - 0.5 \rfloor + 1 \), and likewise
-					for rows. With \( s \) and \( t \) the fractional distances from the top-left center, I blend the top
-					pair with weights \( (1-s, s) \), blend the bottom pair the same way, and then blend those two results
-					with weights \( (1-t, t) \). Near the border, missing neighbors are clamped to the edge texels.</li>
-			</ul>
-			<!-- <p>Nearest sampling is a piecewise-constant reconstruction of the texture: every texel is a flat square of
+		<h3>Implementation</h3>
+		<p><code>rasterize_textured_triangle</code> follows the same structure as my Task 4 function. It scales the
+			vertices into the supersample grid, fixes the winding order,
+			and walks the bounding box with edge functions. For each covered sample, the edge functions divided by the
+			triangle's area gives the barycentric coordinates \( \lambda_0, \lambda_1, \lambda_2 \). The sample's
+			texture coordinate is then \( \lambda_0 (u_0, v_0) + \lambda_1 (u_1, v_1) + \lambda_2 (u_2, v_2) \). I
+			store it in a <code>SampleParams</code> struct together with the current sampling methods, and pass that to
+			<code>Texture::sample</code>.
+		<ul>
+			<li><b>Nearest:</b> return the single texel that contains \( (x, y) \), i.e. texel \( (\lfloor x \rfloor,
+				\lfloor y \rfloor) \), which is the texel whose center is closest. The result is clamped to the texture
+				so that \( u = 1 \) or \( v = 1 \) stays in range.</li>
+			<li><b>Bilinear:</b> find the four texel centers surrounding \( (x, y) \). After shifting by half a texel,
+				they are at columns \( \lfloor x - 0.5 \rfloor \) and \( \lfloor x - 0.5 \rfloor + 1 \), and likewise
+				for rows. With \( s \) and \( t \) the fractional distances from the top-left center, I blend the top
+				pair with weights \( (1-s, s) \), blend the bottom pair the same way, and then blend those two results
+				with weights \( (1-t, t) \). Near the border, missing neighbors are clamped to the edge texels.</li>
+		</ul>
+		<!-- <p>Nearest sampling is a piecewise-constant reconstruction of the texture: every texel is a flat square of
 				color. Bilinear sampling is a piecewise-linear reconstruction: the color changes smoothly between texel
 				centers. Bilinear reads four texels instead of one, so it costs a little more.</p> -->
 
-			<h3>Comparison</h3>
-			<div style="display: flex; flex-direction: column; align-items: center;">
-				<table style="width: 100%; text-align: center; border-collapse: collapse;">
-					<tr>
-						<td style="text-align: center;">
-							<img src="assets/task5_nearest_1_.png" width="400px" />
-							<figcaption>Nearest, 1 sample per pixel</figcaption>
-						</td>
-						<td style="text-align: center;">
-							<img src="assets/task5_nearest_16_.png" width="400px" />
-							<figcaption>Nearest, 16 samples per pixel</figcaption>
-						</td>
-					</tr>
-					<tr>
-						<td style="text-align: center;">
-							<img src="assets/task5_bilinear_1_.png" width="400px" />
-							<figcaption>Bilinear, 1 sample per pixel</figcaption>
-						</td>
-						<td style="text-align: center;">
-							<img src="assets/task5_bilinear_16_.png" width="400px" />
-							<figcaption>Bilinear, 16 samples per pixel</figcaption>
-						</td>
-					</tr>
-				</table>
-			</div>
-			<p>The latitude and longitude lines on the map are only about one texel wide. "Nearest at 1 sample"
-				breaks them into dashes. At the default view the map is minified (each pixel spans roughly 1.5-3
-				texels), so some texels are skipped entirely, and a line appears only where a pixel's sample happens to
-				land on it. Coastlines are
-				stair-stepped for the same reason. "Bilinear at 1 sample" is visibly better: each sample blends four
-				neighboring texels, so a sample that falls next to a line still picks up part of its color, and the lines
-				become more continuous and edges become more soft. At 16 samples, the two methods look almost identical.
-				Averaging 16 samples per pixel already filters the texture, so the extra smoothing from bilinear
-				interpolation isn't as apparent.</p>
+		<h3>Comparison</h3>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+				<tr>
+					<td style="text-align: center;">
+						<img src="assets/task5_nearest_1_.png" width="400px" />
+						<figcaption>Nearest, 1 sample per pixel</figcaption>
+					</td>
+					<td style="text-align: center;">
+						<img src="assets/task5_nearest_16_.png" width="400px" />
+						<figcaption>Nearest, 16 samples per pixel</figcaption>
+					</td>
+				</tr>
+				<tr>
+					<td style="text-align: center;">
+						<img src="assets/task5_bilinear_1_.png" width="400px" />
+						<figcaption>Bilinear, 1 sample per pixel</figcaption>
+					</td>
+					<td style="text-align: center;">
+						<img src="assets/task5_bilinear_16_.png" width="400px" />
+						<figcaption>Bilinear, 16 samples per pixel</figcaption>
+					</td>
+				</tr>
+			</table>
+		</div>
+		<p>The latitude and longitude lines on the map are only about one texel wide. "Nearest at 1 sample"
+			breaks them into dashes. At the default view the map is minified (each pixel spans roughly 1.5-3
+			texels), so some texels are skipped entirely, and a line appears only where a pixel's sample happens to
+			land on it. Coastlines are
+			stair-stepped for the same reason. "Bilinear at 1 sample" is visibly better: each sample blends four
+			neighboring texels, so a sample that falls next to a line still picks up part of its color, and the lines
+			become more continuous and edges become more soft. At 16 samples, the two methods look almost identical.
+			Averaging 16 samples per pixel already filters the texture, so the extra smoothing from bilinear
+			interpolation isn't as apparent.</p>
 
-			<h3>Relative differences</h3>
-			<p>The two methods differ most when the texture is magnified, i.e. one texel covers several screen
-				pixels (e.g., after zooming in). Nearest sampling then shows each texel as a visible square block,
-				and diagonal edges become staircases. Bilinear sampling interpolates between texel centers, so the result
-				is smoother. 
-				<!-- Supersampling does not help nearest here: all the samples inside a pixel usually fall in the -->
-				<!-- same texel and return the same color. -->
-			</p>
-			<p>The difference is small when one texel maps to roughly one pixel, since both methods then return close to
-				the same color. When the texture has many texels per pixel, then both methods would likely alias.
-				A pixel covers many texels, but nearest reads only one and bilinear only four, so neither averages over
-				the pixel's full footprint.</p>
+		<h3>Relative differences</h3>
+		<p>The two methods differ most when the texture is magnified, i.e. one texel covers several screen
+			pixels (e.g., after zooming in). Nearest sampling then shows each texel as a visible square block,
+			and diagonal edges become staircases. Bilinear sampling interpolates between texel centers, so the result
+			is smoother.
+			<!-- Supersampling does not help nearest here: all the samples inside a pixel usually fall in the -->
+			<!-- same texel and return the same color. -->
+		</p>
+		<p>The difference is small when one texel maps to roughly one pixel, since both methods then return close to
+			the same color. When the texture has many texels per pixel, then both methods would likely alias.
+			A pixel covers many texels, but nearest reads only one and bilinear only four, so neither averages over
+			the pixel's full footprint.</p>
 
 
 
 		<h2>Task 6: "Level Sampling" with mipmaps for texture mapping</h2>
-			<h3>Level sampling</h3>
-			<p>When a texture is minified, one screen sample covers many texels. Pixel sampling alone reads only one
-				texel (nearest) or four (bilinear), so most of the texels under the sample are skipped and the result
-				aliases. A mipmap stores the texture at a series of resolutions: level 0 is the full image, and
-				each level after it halves the width and height by averaging 2 x 2 blocks of the level before.
-				Level sampling picks the level whose texels are about the size of the sample's footprint on the
-				texture. A single lookup there then returns roughly the average color over that whole footprint.</p>
+		<h3>Level sampling</h3>
+		<p>When a texture is minified, one screen sample covers many texels. Pixel sampling alone reads only one
+			texel (nearest) or four (bilinear), so most of the texels under the sample are skipped and the result
+			aliases. A mipmap stores the texture at a series of resolutions: level 0 is the full image, and
+			each level after it halves the width and height by averaging 2 x 2 blocks of the level before.
+			Level sampling picks the level whose texels are about the size of the sample's footprint on the
+			texture. A single lookup there then returns roughly the average color over that whole footprint.</p>
 
-			<h3>Implementation</h3>
-			<ul>
-				<li><b>Texture-coordinate differentials:</b> In <code>rasterize_textured_triangle</code>, I compute the
-					uv at the sample \( (x, y) \) and at its neighbors \( (x+1, y) \) and \( (x, y+1) \), and store them as
-					<code>p_uv</code>, <code>p_dx_uv</code> and <code>p_dy_uv</code>. The uv is a linear function of
-					screen position within a triangle, so these steps are constant per triangle. I compute them once
-					from the edge-function coefficients: \( \partial \lambda / \partial x = A / \text{area} \) and \(
-					\partial \lambda / \partial y = B / \text{area} \). Each sample then adds them to its own uv.</li>
-				<li><b>Picking which level:</b> (<code>Texture::get_level</code>): I subtract to get the uv differences,
-					then scale them by the full-resolution texture size to convert them into texels: \( \big(
-					\frac{du}{dx} w,\ \frac{dv}{dx} h \big) \) and \( \big( \frac{du}{dy} w,\ \frac{dv}{dy} h \big)
-					\). The footprint size is 
-					<!-- \( L = \max\big( \lVert (\frac{du}{dx} w,\ \frac{dv}{dx} h) \rVert,\
+		<h3>Implementation</h3>
+		<ul>
+			<li><b>Texture-coordinate differentials:</b> In <code>rasterize_textured_triangle</code>, I compute the
+				uv at the sample \( (x, y) \) and at its neighbors \( (x+1, y) \) and \( (x, y+1) \), and store them as
+				<code>p_uv</code>, <code>p_dx_uv</code> and <code>p_dy_uv</code>. The uv is a linear function of
+				screen position within a triangle, so these steps are constant per triangle. I compute them once
+				from the edge-function coefficients: \( \partial \lambda / \partial x = A / \text{area} \) and \(
+				\partial \lambda / \partial y = B / \text{area} \). Each sample then adds them to its own uv.
+			</li>
+			<li><b>Picking which level:</b> (<code>Texture::get_level</code>): I subtract to get the uv differences,
+				then scale them by the full-resolution texture size to convert them into texels: \( \big(
+				\frac{du}{dx} w,\ \frac{dv}{dx} h \big) \) and \( \big( \frac{du}{dy} w,\ \frac{dv}{dy} h \big)
+				\). The footprint size is
+				<!-- \( L = \max\big( \lVert (\frac{du}{dx} w,\ \frac{dv}{dx} h) \rVert,\
 					\lVert (\tfrac{du}{dy} w,\ \tfrac{dv}{dy} h) \rVert \big) \) -->
-					\[
-					L = \max\left(
-					\left\|
-						\left(\frac{du}{dx}w,\ \frac{dv}{dx}h\right)
-					\right\|,
-					\left\|
-						\left(\frac{du}{dy}w,\ \frac{dv}{dy}h\right)
-					\right\|
-					\right)
-					\] 
-					and the level is \( D = \log_2 L \). I
-					clamp D to [0, last level]. A negative D means the texture is magnified, and
-					level 0 is already the finest available.</li>
-				<li><b>Sampling</b> (<code>Texture::sample</code>). The pixel sampling method decides
-					how to read inside one level, and the level sampling method decides which level(s)
-					to read, so all six combinations work.
-					<!-- <ul>
+				\[
+				L = \max\left(
+				\left\|
+				\left(\frac{du}{dx}w,\ \frac{dv}{dx}h\right)
+				\right\|,
+				\left\|
+				\left(\frac{du}{dy}w,\ \frac{dv}{dy}h\right)
+				\right\|
+				\right)
+				\]
+				and the level is \( D = \log_2 L \). I
+				clamp D to [0, last level]. A negative D means the texture is magnified, and
+				level 0 is already the finest available.
+			</li>
+			<li><b>Sampling</b> (<code>Texture::sample</code>). The pixel sampling method decides
+				how to read inside one level, and the level sampling method decides which level(s)
+				to read, so all six combinations work.
+				<!-- <ul>
 						<li><code>L_ZERO</code> always reads level 0, as in Task 5.</li>
 						<li><code>L_NEAREST</code> rounds D to the nearest integer level.</li>
 						<li><code>L_LINEAR</code> reads the two levels \( \lfloor D \rfloor \) and \( \lfloor D \rfloor + 1
 							\) and blends them by the fractional part of D. Combined with bilinear pixel sampling, this
 							is trilinear filtering.</li>
 					</ul> -->
-				</li>
-				<li><b>Supersampling:</b> The neighbors \( (x+1, y) \) and \( (x, y+1) \) are one step in the
-					supersample grid. At 1 sample per pixel that is one pixel as specified. At higher rates,
-					each sample filters its own smaller footprint, and the resolve step averages the samples, so the
-					texture is not blurred twice. At 16 samples per pixel, the level drops by \( \log_2 4 = 2 \).</li>
-			</ul>
+			</li>
+			<li><b>Supersampling:</b> The neighbors \( (x+1, y) \) and \( (x, y+1) \) are one step in the
+				supersample grid. At 1 sample per pixel that is one pixel as specified. At higher rates,
+				each sample filters its own smaller footprint, and the resolve step averages the samples, so the
+				texture is not blurred twice. At 16 samples per pixel, the level drops by \( \log_2 4 = 2 \).</li>
+		</ul>
 
-			<h3>Tradeoffs between the three techniques</h3>
-			<p>The timings below are the median of 5 renders of <code>texmap/test5.svg</code> at 800x800 on an
-				Apple M2 Pro. They measure only <code>svg.draw()</code>.</p>
-			<table style="margin: 0 auto; border-collapse: collapse;" border="1" cellpadding="6">
-				<tr><th>Config</th><th>Time (ms)</th><th>Relative</th></tr>
-				<tr><td>Level 0, nearest pixel, 1 sample</td><td>2.78</td><td>1.00x</td></tr>
-				<tr><td>Level 0, bilinear pixel, 1 sample</td><td>3.02</td><td>1.09x</td></tr>
-				<tr><td>Nearest level, nearest pixel, 1 sample</td><td>3.41</td><td>1.23x</td></tr>
-				<tr><td>Nearest level, bilinear pixel, 1 sample</td><td>3.78</td><td>1.36x</td></tr>
-				<tr><td>Linear level, nearest pixel, 1 sample</td><td>3.54</td><td>1.27x</td></tr>
-				<tr><td>Linear level, bilinear pixel (trilinear), 1 sample</td><td>4.37</td><td>1.57x</td></tr>
-				<tr><td>Level 0, nearest pixel, 4 samples</td><td>9.32</td><td>3.35x</td></tr>
-				<tr><td>Level 0, nearest pixel, 16 samples</td><td>34.81</td><td>12.5x</td></tr>
-				<tr><td>Trilinear, 16 samples</td><td>48.36</td><td>17.4x</td></tr>
+		<h3>Tradeoffs between the three techniques</h3>
+		<p>The timings below are the median of 5 renders of <code>texmap/test5.svg</code> at 800x800 on an
+			Apple M2 Pro. They measure only <code>svg.draw()</code>.</p>
+		<table style="margin: 0 auto; border-collapse: collapse;" border="1" cellpadding="6">
+			<tr>
+				<th>Config</th>
+				<th>Time (ms)</th>
+				<th>Relative</th>
+			</tr>
+			<tr>
+				<td>Level 0, nearest pixel, 1 sample</td>
+				<td>2.78</td>
+				<td>1.00x</td>
+			</tr>
+			<tr>
+				<td>Level 0, bilinear pixel, 1 sample</td>
+				<td>3.02</td>
+				<td>1.09x</td>
+			</tr>
+			<tr>
+				<td>Nearest level, nearest pixel, 1 sample</td>
+				<td>3.41</td>
+				<td>1.23x</td>
+			</tr>
+			<tr>
+				<td>Nearest level, bilinear pixel, 1 sample</td>
+				<td>3.78</td>
+				<td>1.36x</td>
+			</tr>
+			<tr>
+				<td>Linear level, nearest pixel, 1 sample</td>
+				<td>3.54</td>
+				<td>1.27x</td>
+			</tr>
+			<tr>
+				<td>Linear level, bilinear pixel (trilinear), 1 sample</td>
+				<td>4.37</td>
+				<td>1.57x</td>
+			</tr>
+			<tr>
+				<td>Level 0, nearest pixel, 4 samples</td>
+				<td>9.32</td>
+				<td>3.35x</td>
+			</tr>
+			<tr>
+				<td>Level 0, nearest pixel, 16 samples</td>
+				<td>34.81</td>
+				<td>12.5x</td>
+			</tr>
+			<tr>
+				<td>Trilinear, 16 samples</td>
+				<td>48.36</td>
+				<td>17.4x</td>
+			</tr>
+		</table>
+		<ul>
+			<li><b>Pixel sampling</b> (nearest vs bilinear). <i>Speed:</i> bilinear reads 4 texels instead of 1, but
+				only cost about 9% more here. <i>Memory:</i> none extra. <i>Antialiasing:</i> weak. It smooths
+				magnified textures and slightly softens aliasing, but under minification it still reads only a
+				2 x 2 neighborhood, so most of a large footprint is ignored.</li>
+			<li><b>Level sampling</b> (mipmaps). <i>Speed:</i> cheap. It adds the level computation and, for linear
+				level sampling, a second lookup. <i>Memory:</i> the
+				mipmap stores every level, which adds \( \frac14 + \frac1{16} + \dots \approx \frac13 \) of the
+				texture's size. <i>Antialiasing:</i> strong for minified textures, since each lookup is prefiltered
+				over the footprint. It does nothing for triangle edges, and it tends to overblur. The footprint is
+				approximated by a square of side \( L \), the larger of the two directions, so textures viewed at a
+				grazing angle get blurred in both directions. Nearest-level sampling also shows visible bands where
+				the level switches, which linear level sampling blends away.</li>
+			<li><b>Supersampling</b> (more samples per pixel). <i>Speed:</i> the most expensive. Cost grows linearly
+				with the sample rate. <i>Memory:</i> the sample buffer grows with the rate.
+				<i>Antialiasing:</i> the most general. It reduces every kind of aliasing, including triangle edges and
+				textures in any direction, but it only raises the sampling rate by a fixed factor, so frequencies well
+				above that rate will likely still alias.
+			</li>
+		</ul>
+
+		<h3>My own texture</h3>
+		<div style="display: flex; flex-direction: column; align-items: center;">
+			<table style="width: 100%; text-align: center; border-collapse: collapse;">
+				<tr>
+					<td style="text-align: center;">
+						<img src="assets/task6_l0_pnearest.png" width="400px" />
+						<figcaption><code>L_ZERO</code> + <code>P_NEAREST</code></figcaption>
+					</td>
+					<td style="text-align: center;">
+						<img src="assets/task6_l0_plinear.png" width="400px" />
+						<figcaption><code>L_ZERO</code> + <code>P_LINEAR</code></figcaption>
+					</td>
+				</tr>
+				<tr>
+					<td style="text-align: center;">
+						<img src="assets/task6_lnearest_pnearest.png" width="400px" />
+						<figcaption><code>L_NEAREST</code> + <code>P_NEAREST</code></figcaption>
+					</td>
+					<td style="text-align: center;">
+						<img src="assets/task6_lnearest_plinear.png" width="400px" />
+						<figcaption><code>L_NEAREST</code> + <code>P_LINEAR</code></figcaption>
+					</td>
+				</tr>
 			</table>
-			<ul>
-				<li><b>Pixel sampling</b> (nearest vs bilinear). <i>Speed:</i> bilinear reads 4 texels instead of 1, but
-					only cost about 9% more here. <i>Memory:</i> none extra. <i>Antialiasing:</i> weak. It smooths
-					magnified textures and slightly softens aliasing, but under minification it still reads only a
-					2 x 2 neighborhood, so most of a large footprint is ignored.</li>
-				<li><b>Level sampling</b> (mipmaps). <i>Speed:</i> cheap. It adds the level computation and, for linear
-					level sampling, a second lookup. <i>Memory:</i> the
-					mipmap stores every level, which adds \( \frac14 + \frac1{16} + \dots \approx \frac13 \) of the
-					texture's size. <i>Antialiasing:</i> strong for minified textures, since each lookup is prefiltered
-					over the footprint. It does nothing for triangle edges, and it tends to overblur. The footprint is
-					approximated by a square of side \( L \), the larger of the two directions, so textures viewed at a
-					grazing angle get blurred in both directions. Nearest-level sampling also shows visible bands where
-					the level switches, which linear level sampling blends away.</li>
-				<li><b>Supersampling</b> (more samples per pixel). <i>Speed:</i> the most expensive. Cost grows linearly
-					with the sample rate. <i>Memory:</i> the sample buffer grows with the rate.
-					<i>Antialiasing:</i> the most general. It reduces every kind of aliasing, including triangle edges and
-					textures in any direction, but it only raises the sampling rate by a fixed factor, so frequencies well
-					above that rate will likely still alias.</li>
-			</ul>
-
-			<h3>My own texture</h3>
-			<div style="display: flex; flex-direction: column; align-items: center;">
-				<table style="width: 100%; text-align: center; border-collapse: collapse;">
-					<tr>
-						<td style="text-align: center;">
-							<img src="assets/task6_l0_pnearest.png" width="400px" />
-							<figcaption><code>L_ZERO</code> + <code>P_NEAREST</code></figcaption>
-						</td>
-						<td style="text-align: center;">
-							<img src="assets/task6_l0_plinear.png" width="400px" />
-							<figcaption><code>L_ZERO</code> + <code>P_LINEAR</code></figcaption>
-						</td>
-					</tr>
-					<tr>
-						<td style="text-align: center;">
-							<img src="assets/task6_lnearest_pnearest.png" width="400px" />
-							<figcaption><code>L_NEAREST</code> + <code>P_NEAREST</code></figcaption>
-						</td>
-						<td style="text-align: center;">
-							<img src="assets/task6_lnearest_plinear.png" width="400px" />
-							<figcaption><code>L_NEAREST</code> + <code>P_LINEAR</code></figcaption>
-						</td>
-					</tr>
-				</table>
-			</div>
+		</div>
 
 
 		<h2>(Optional) Task 7: Extra Credit - Draw Something Creative!</h2>
 		<figure>
-			<img src="assets/competition.png" alt="sunset over mountains and a lake" style="width:800px; max-width:100%" />
+			<img src="assets/competition.png" alt="sunset over mountains and a lake"
+				style="width:800px; max-width:100%" />
 			<figcaption>A sunset over layered mountains, reflected in a lake!</figcaption>
 		</figure>
 
@@ -549,9 +600,11 @@
 			<li><b>Mountains:</b> three ridges drawn from back to front, each one lower and darker than the one
 				behind it. Each ridge line comes from 1D midpoint displacement: start with a few random heights,
 				then repeatedly insert a midpoint between every pair of neighbours and shift it by a random amount
-				that shrinks each round. Each mountain fades toward a warm light-purplish color near the horizon, which makes
+				that shrinks each round. Each mountain fades toward a warm light-purplish color near the horizon, which
+				makes
 				the far ridges look farther away.</li>
-			<li><b>Lake:</b> the sky gradient mirrored vertically and darkened, with the three ridges flipped about the horizon
+			<li><b>Lake:</b> the sky gradient mirrored vertically and darkened, with the three ridges flipped about the
+				horizon
 				on top of it. Thin bright diamonds below the sun form its reflection on the water.</li>
 		</ul>
 
